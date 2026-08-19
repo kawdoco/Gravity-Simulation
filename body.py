@@ -13,20 +13,18 @@ from vector import Vector3D
 
 
 class CelestialBody(ABC):
-    """Abstract base class for any object in the simulation. Can't be
-    instantiated directly - CelestialBody(...) raises a TypeError,
-    because marker_size() below has no implementation here. Only a
-    subclass that provides one (Planet, Star) can actually be built."""
+    """Abstract base class for any object in the simulation."""
 
     def __init__(self, name, mass, radius, position: Vector3D,
-                 velocity: Vector3D, color="white"):
+                 velocity: Vector3D, color="white", has_ring=False):
         self.name = name
         self._mass = mass  
         self.radius = radius
         self.position = position
         self.velocity = velocity
         self.color = color
-        self.trail = []  # history of past positions, used to draw the orbit path
+        self.has_ring = has_ring 
+        self.trail = []  # history of past positions,
 
     @property
     def mass(self):
@@ -54,22 +52,16 @@ class CelestialBody(ABC):
 
     @abstractmethod
     def marker_size(self):
-        """Every concrete body must say how big it renders. No default
-        here on purpose - it forces each subclass to make its own
-        decision instead of silently inheriting one that might not fit."""
         raise NotImplementedError
 
     @staticmethod
     def radius_from_mass(mass, density=3000.0):
         """Estimate a physically-plausible radius from mass, assuming a
-        uniform density (kg/m^3). A staticmethod because it doesn't
-        touch self or cls - it's just a formula that happens to live
-        on this class because it's about bodies. Call it as
-        CelestialBody.radius_from_mass(mass), no instance needed."""
+        uniform density """
         volume = mass / density
         return (3 * volume / (4 * 3.141592653589793)) ** (1 / 3)
 
-    # ---- JSON serialization -----------------------------------------
+    # ---- JSON (de)serialization -----------------------------------------
     def to_dict(self):
         return {
             "type": self.__class__.__name__,
@@ -79,11 +71,12 @@ class CelestialBody(ABC):
             "position": list(self.position.as_tuple()),
             "velocity": list(self.velocity.as_tuple()),
             "color": self.color,
+            "has_ring": self.has_ring,
         }
 
     @classmethod
     def from_dict(cls, data):
-        """Factory that rebuilds the correct subclass from saved data."""
+        """rebuilds the correct subclass from saved data."""
         body_cls = BODY_CLASSES[data["type"]]
         return body_cls(
             name=data["name"],
@@ -92,6 +85,7 @@ class CelestialBody(ABC):
             position=Vector3D(*data["position"]),
             velocity=Vector3D(*data["velocity"]),
             color=data.get("color", "white"),
+            has_ring=data.get("has_ring", False),
         )
 
     def __repr__(self):

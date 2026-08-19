@@ -2,10 +2,7 @@
 vector.py
 
 A minimal 3D vector class used for position, velocity, and force
-throughout the simulation. Wrapping x, y, z in a class (instead of
-passing raw numbers around) keeps related data together and lets us
-overload operators so the physics code reads like the math it
-represents.
+throughout the simulation. Wrapping x, y, z in a class.
 """
 import math
 
@@ -27,7 +24,7 @@ class Vector3D:
     def __mul__(self, scalar):
         return Vector3D(self.x * scalar, self.y * scalar, self.z * scalar)
 
-    __rmul__ = __mul__  
+    __rmul__ = __mul__  # "scalar * vector" works too
 
     def __truediv__(self, scalar):
         return Vector3D(self.x / scalar, self.y / scalar, self.z / scalar)
