@@ -1,16 +1,3 @@
-"""
-main.py
-
-Entry point. Builds a scenario (solar system or a random cluster) and
-runs the animation. Command-line flags let you turn on Barnes-Hut,
-set the collision behavior, or load/save a scenario as JSON.
-
-Examples:
-    python main.py
-    python main.py --scenario cluster --bodies 300 --barnes-hut
-    python main.py --restitution 0.8
-    python main.py --load my_scenario.json
-"""
 import argparse
 import math
 import random
@@ -29,9 +16,7 @@ def build_solar_system():
                position=Vector3D(0, 0, 0), velocity=Vector3D(0, 0, 0), color="#FFF4D6")
     sim.add_body(sun)
 
-    # name, mass (kg), distance from sun (m), orbital speed (m/s), color
-    # Colors approximate each planet's real observed hue rather than
-    # generic named crayons (e.g. Venus is a pale cream, not orange).
+    
     planet_data = [
         ("Mercury", 3.285e23, 5.79e10, 47400, "#9C9490"),
         ("Venus",   4.867e24, 1.082e11, 35020, "#E8D6A8"),
@@ -40,15 +25,14 @@ def build_solar_system():
     ]
     for name, mass, distance, speed, color in planet_data:
         position = Vector3D(distance, 0, 0)
-        velocity = Vector3D(0, speed, 0)  # perpendicular to position -> roughly circular orbit
+        velocity = Vector3D(0, speed, 0)  
         sim.add_body(Planet(name, mass, radius=CelestialBody.radius_from_mass(mass, density=5000),
                              position=position, velocity=velocity, color=color))
     return sim
 
 
 def build_random_cluster(n=200, seed=None):
-    """A compact cluster of many bodies - meant to demo Barnes-Hut and
-    collisions, not real astronomy. Units are still SI (kg, m, m/s)."""
+  
     rng = random.Random(seed)
     sim = Simulation()
 
