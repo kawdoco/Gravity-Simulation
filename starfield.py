@@ -23,18 +23,45 @@ class Starfield:
                               # flat (0, 0, 0)
 
     def __init__(self, width, height, density=0.00028, seed=7):
-        self.surface = self._build(width, height, density, seed)
-
-    @classmethod
-    def _build(cls, width, height, density, seed):
         rng = np.random.default_rng(seed)
         surface = pygame.Surface((width, height))
-        surface.fill(cls.SPACE_COLOR)
-        cls._draw_milky_band(surface, width, height, rng)
-        cls._draw_stars(surface, width, height, density, rng)
-        return surface
+        surface.fill(self.SPACE_COLOR)
+        self._draw_milky_band(surface, width, height, rng)
+        xs, ys, brightness, tint = self._star_positions(width, height, density, rng)
+        self._draw_stars(surface, xs, ys, brightness, tint)
+        self.surface = surface
+        self.twinkle_stars = self._pick_twinkle_stars(xs, ys, brightness, tint, rng)
 
-    @staticmethod
+    @staticmethod  # Static Method
+    def _pick_twinkle_stars(xs, ys, brightness, tint, rng, count=20):
+        candidates = np.where(brightness > np.percentile(brightness, 80))[0]
+        if len(candidates) == 0:
+            return []
+        chosen = rng.choice(candidates, size=min(count, len(candidates)), replace=False)
+        stars = []
+        for i in chosen:
+            b = int(brightness[i])
+            if tint[i] < 0.08:
+                color = (int(b * 0.78), int(b * 0.88), b)
+            elif tint[i] > 0.94:
+                color = (b, int(b * 0.86), int(b * 0.68))
+            else:
+                color = (b, b, b)
+            stars.append({
+                "x": int(xs[i]), "y": int(ys[i]), "color": color,
+                "phase": rng.uniform(0, 2 * math.pi), "speed": rng.uniform(0.02, 0.055),
+            })
+        return stars
+
+    def draw_twinkle(self, target, frame_count):
+        for star in self.twinkle_stars:
+            pulse = 0.5 + 0.5 * math.sin(frame_count * star["speed"] + star["phase"])
+            scale = 0.55 + 0.45 * pulse
+            color = tuple(min(255, int(c * scale) + 10) for c in star["color"])
+            radius = 1 if pulse < 0.6 else 2
+            pygame.draw.circle(target, color, (star["x"], star["y"]), radius)
+    
+    @staticmethod  # Static Method
     def _draw_milky_band(surface, width, height, rng):
         """create random values for galaxy glow."""
         # randoms values for galaxy glow, random values for RGB format, full screen size  and get noise values from the image
@@ -62,18 +89,19 @@ class Starfield:
         pixels[:] = np.clip(pixels.astype(np.float32) + add, 0, 255).astype(np.uint8)
         del pixels
 
-    @staticmethod
-    def _draw_stars(surface, width, height, density, rng): # calculate how many stars to create
+    @staticmethod  # Static Method
+    def _star_positions(width, height, density, rng):  # Encapsulation: calculate how many stars to create
         n = max(1, int(width * height * density))
         xs = rng.integers(0, width, n)
         ys = rng.integers(0, height, n)
         # Power-law brightness: mostly dim background stars, a few
         # standouts - not a uniform scatter of equally-bright dots.
         brightness = np.clip(rng.power(3.2, n) * 245 + 12, 0, 255).astype(int)
-        tint = rng.random(n)
+        tint = rng.random(n)  # random values for star colors
+        return xs, ys, brightness, tint
 
-        # random values for star colors
-
+    @staticmethod  # Static Method
+    def _draw_stars(surface, xs, ys, brightness, tint):
         pixels = pygame.surfarray.pixels3d(surface)
         for x, y, b, t in zip(xs, ys, brightness, tint):
             b = int(b)
@@ -84,15 +112,6 @@ class Starfield:
             else:               # ordinary white star
                 pixels[x, y] = (b, b, b)
         del pixels
-
-        # Helps to add small sparkle to the brightest stars , set sparkle length,sparkle color and horizontal sparkles and vertical sparkles.
-        bright_idx = np.argsort(brightness)[-max(1, int(n * 0.008)):]
-        for i in bright_idx:
-            x, y, b = int(xs[i]), int(ys[i]), int(brightness[i])
-            length = int(rng.integers(3, 7))
-            c = (min(255, b + 20),) * 3
-            pygame.draw.line(surface, c, (x - length, y), (x + length, y))
-            pygame.draw.line(surface, c, (x, y - length), (x, y + length))
 
     def draw(self, target):
         target.blit(self.surface, (0, 0))
