@@ -1,6 +1,7 @@
 import argparse
 import math
 import random
+import sys
 
 from vector import Vector3D
 from body import Star, Planet, CelestialBody
@@ -16,7 +17,6 @@ def build_solar_system():
                position=Vector3D(0, 0, 0), velocity=Vector3D(0, 0, 0), color="#FFF4D6")
     sim.add_body(sun)
 
-    
     planet_data = [
         ("Mercury", 3.285e23, 5.79e10, 47400, "#9C9490"),
         ("Venus",   4.867e24, 1.082e11, 35020, "#E8D6A8"),
@@ -25,14 +25,13 @@ def build_solar_system():
     ]
     for name, mass, distance, speed, color in planet_data:
         position = Vector3D(distance, 0, 0)
-        velocity = Vector3D(0, speed, 0)  
+        velocity = Vector3D(0, speed, 0)
         sim.add_body(Planet(name, mass, radius=CelestialBody.radius_from_mass(mass, density=5000),
                              position=position, velocity=velocity, color=color))
     return sim
 
 
 def build_random_cluster(n=200, seed=None):
-  
     rng = random.Random(seed)
     sim = Simulation()
 
@@ -62,7 +61,48 @@ def build_random_cluster(n=200, seed=None):
     return sim
 
 
+def _launch(sim, scenario, fullscreen, view_au=None):
+    if scenario == "cluster":
+        dt, steps_per_frame = 600, 1              # smaller timestep, one step/frame -> stays smooth
+        default_view_au = 0.25
+    else:
+        dt, steps_per_frame = 6 * 3600, 4
+        default_view_au = 3.0
+
+    if sim.use_barnes_hut and len(sim.bodies) < sim.barnes_hut_threshold:
+        print(f"Note: with {len(sim.bodies)} bodies, direct calculation is actually faster "
+              f"than Barnes-Hut in pure Python (measured crossover is ~{sim.barnes_hut_threshold} "
+              f"bodies) - Simulation will use direct calculation regardless of the setting here.")
+
+    viz = Visualizer(sim, steps_per_frame=steps_per_frame, dt=dt,
+                      view_radius_au=view_au if view_au is not None else default_view_au,
+                      fullscreen=fullscreen)
+    viz.run()
+
+
+def _run_from_menu():
+    from menu import MainMenu
+    settings = MainMenu().run()
+    if settings is None:
+        return
+
+    integrator = EulerIntegrator() if settings["integrator"] == "euler" else VerletIntegrator()  # Polymorphism
+    if settings["scenario"] == "cluster":
+        sim = build_random_cluster(n=settings["bodies"])
+    else:
+        sim = build_solar_system()
+    sim.use_barnes_hut = settings["barnes_hut"]
+    sim.restitution = settings["collisions"]
+    sim.integrator = integrator
+
+    _launch(sim, settings["scenario"], settings["fullscreen"])
+
+
 def main():
+    if len(sys.argv) == 1:
+        _run_from_menu()
+        return
+
     parser = argparse.ArgumentParser(description="OOP gravity simulation")
     parser.add_argument("--scenario", choices=["solar", "cluster"], default="solar")
     parser.add_argument("--bodies", type=int, default=80, help="body count for --scenario cluster")
@@ -76,8 +116,9 @@ def main():
     parser.add_argument("--save", type=str, default=None, help="save the scenario to JSON and exit")
     parser.add_argument("--view-au", type=float, default=None,
                          help="initial view radius, in AU (default: 3 for solar, 0.25 for cluster)")
+    parser.add_argument("--fullscreen", action="store_true", help="launch in fullscreen")
     args = parser.parse_args()
-    integrator = EulerIntegrator() if args.integrator == "euler" else VerletIntegrator()
+    integrator = EulerIntegrator() if args.integrator == "euler" else VerletIntegrator()  # Polymorphism
 
     if args.load:
         sim = Simulation(use_barnes_hut=args.barnes_hut, theta=args.theta,
@@ -96,25 +137,12 @@ def main():
         sim.restitution = args.restitution
         sim.integrator = integrator
 
-    if args.barnes_hut and len(sim.bodies) < sim.barnes_hut_threshold:
-        print(f"Note: with {len(sim.bodies)} bodies, direct calculation is actually faster "
-              f"than Barnes-Hut in pure Python (measured crossover is ~{sim.barnes_hut_threshold} "
-              f"bodies) - Simulation will use direct calculation regardless of --barnes-hut here.")
-
     if args.save:
         sim.save_state(args.save)
         print(f"Saved {len(sim.bodies)} bodies to {args.save}")
         return
 
-    if args.scenario == "cluster":
-        dt, steps_per_frame = 600, 1              # smaller timestep, one step/frame -> stays smooth
-        view_au = args.view_au if args.view_au is not None else 0.25
-    else:
-        dt, steps_per_frame = 6 * 3600, 4
-        view_au = args.view_au if args.view_au is not None else 3.0
-
-    viz = Visualizer(sim, steps_per_frame=steps_per_frame, dt=dt, view_radius_au=view_au)
-    viz.run()
+    _launch(sim, args.scenario, args.fullscreen, view_au=args.view_au)
 
 
 if __name__ == "__main__":
