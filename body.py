@@ -1,48 +1,38 @@
-"""
-body.py
-
-Defines the class hierarchy for anything with mass that moves under
-gravity. CelestialBody holds everything shared between bodies;
-Planet and Star specialise it. Every body can be treated identically
-by Simulation/Visualizer/Octree, but each renders and serialises
-itself according to its own type (polymorphism).
-"""
+"""body.py - class hierarchy for anything with mass that moves under gravity."""
 from abc import ABC, abstractmethod
 
 from vector import Vector3D
 
 
-class CelestialBody(ABC):
-    """Abstract base class for any object in the simulation."""
+class CelestialBody(ABC):  # Abstraction
 
     def __init__(self, name, mass, radius, position: Vector3D,
                  velocity: Vector3D, color="white", has_ring=False):
         self.name = name
-        self._mass = mass  
+        self._mass = mass  # Encapsulation
         self.radius = radius
         self.position = position
         self.velocity = velocity
         self.color = color
-        self.has_ring = has_ring 
-        self.trail = []  # history of past positions,
+        self.has_ring = has_ring
+        self.trail = []
 
-    @property
+    @property  # Encapsulation
     def mass(self):
         return self._mass
 
-    @mass.setter
+    @mass.setter  # Encapsulation
     def mass(self, value):
         if value <= 0:
             raise ValueError("Mass must be positive.")
         self._mass = value
 
     def apply_force(self, force: Vector3D, dt: float):
-        """Update velocity from a net force using a = F / m, v += a * dt.
-        Used by EulerIntegrator (see integrator.py)."""
+        """v += (F/m)*dt"""
         acceleration = force / self._mass
         self.velocity = self.velocity + acceleration * dt
 
-    def record_trail(self, max_trail_length: int = 150):
+    def record_trail(self, max_trail_length: int = 900):
         self.trail.append(self.position.as_tuple())
         if len(self.trail) > max_trail_length:
             self.trail.pop(0)
@@ -50,18 +40,15 @@ class CelestialBody(ABC):
     def is_colliding(self, other):
         return self.position.distance_to(other.position) <= (self.radius + other.radius)
 
-    @abstractmethod
+    @abstractmethod  # Abstraction
     def marker_size(self):
         raise NotImplementedError
 
-    @staticmethod
+    @staticmethod  # Static Method
     def radius_from_mass(mass, density=3000.0):
-        """Estimate a physically-plausible radius from mass, assuming a
-        uniform density """
         volume = mass / density
         return (3 * volume / (4 * 3.141592653589793)) ** (1 / 3)
 
-    # ---- JSON (de)serialization -----------------------------------------
     def to_dict(self):
         return {
             "type": self.__class__.__name__,
@@ -76,7 +63,6 @@ class CelestialBody(ABC):
 
     @classmethod
     def from_dict(cls, data):
-        """rebuilds the correct subclass from saved data."""
         body_cls = BODY_CLASSES[data["type"]]
         return body_cls(
             name=data["name"],
@@ -92,19 +78,14 @@ class CelestialBody(ABC):
         return f"{self.__class__.__name__}({self.name}, mass={self._mass:.2e} kg)"
 
 
-class Planet(CelestialBody):
-    """A planet - renders smaller than a star."""
-
-    def marker_size(self):  # method overriding: fulfils the abstract contract above
+class Planet(CelestialBody):  # Inheritance
+    def marker_size(self):  # Polymorphism
         return 40
 
 
-class Star(CelestialBody):
-    """A star - renders larger, typically far more massive than planets."""
-
-    def marker_size(self):  # method overriding: a different render size for stars
+class Star(CelestialBody):  # Inheritance
+    def marker_size(self):  # Polymorphism
         return 200
-
 
 
 BODY_CLASSES = {
