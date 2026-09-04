@@ -8,12 +8,12 @@ import numpy as np
 import pygame
 
 
-class Starfield:
+class Starfield: #multi layer background
     SPACE_COLOR = (3, 4, 9)
 
     def __init__(self, width, height, density=0.00028, seed=7):
-        self.width = width
-        self.height = height
+        self.width = width #display width
+        self.height = height #display height
         rng = np.random.default_rng(seed)
 
         base = pygame.Surface((width, height))
