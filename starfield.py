@@ -1,14 +1,7 @@
-"""
-starfield.py
-
-A static, procedurally generated star field
-
-Star brightness follows a power-law skew (many faint stars, a few
-bright ones) rather than a flat random distribution - closer to how
-real star fields actually look, and closer to the muted, low-key
-palette real astrophotography uses rather than a "cartoon space"
-scattering of big uniform dots.
-"""
+"""starfield.py - procedural star field, split into two layers:
+a fixed base (space color + Milky Way band) and a tileable star
+layer that pans as the camera's focus moves, so "spiral" mode reads
+as the camera actually traveling somewhere."""
 import math
 
 import numpy as np
@@ -16,20 +9,21 @@ import pygame
 
 
 class Starfield:
-    """Creates a decorative star background"""
-
-    SPACE_COLOR = (3, 4, 9)  # near-black with the faintest blue cast,
-                              # closer to a real long-exposure sky than
-                              # flat (0, 0, 0)
+    SPACE_COLOR = (3, 4, 9)
 
     def __init__(self, width, height, density=0.00028, seed=7):
+        self.width = width
+        self.height = height
         rng = np.random.default_rng(seed)
-        surface = pygame.Surface((width, height))
-        surface.fill(self.SPACE_COLOR)
-        self._draw_milky_band(surface, width, height, rng)
+
+        base = pygame.Surface((width, height))
+        base.fill(self.SPACE_COLOR)
+        self._draw_milky_band(base, width, height, rng)
+        self.base = base
+
         xs, ys, brightness, tint = self._star_positions(width, height, density, rng)
-        self._draw_stars(surface, xs, ys, brightness, tint)
-        self.surface = surface
+        self.stars = pygame.Surface((width, height), pygame.SRCALPHA)
+        self._draw_stars(self.stars, xs, ys, brightness, tint)
         self.twinkle_stars = self._pick_twinkle_stars(xs, ys, brightness, tint, rng)
 
     @staticmethod  # Static Method
@@ -53,36 +47,42 @@ class Starfield:
             })
         return stars
 
-    def draw_twinkle(self, target, frame_count):
+    def _wrapped_positions(self, x, y, offset_x, offset_y):  # Encapsulation
+        bx = (x + offset_x) % self.width
+        by = (y + offset_y) % self.height
+        for sx in (bx, bx - self.width):
+            for sy in (by, by - self.height):
+                if 0 <= sx < self.width and 0 <= sy < self.height:
+                    yield sx, sy
+
+    def draw_twinkle(self, target, frame_count, offset_x=0, offset_y=0):
         for star in self.twinkle_stars:
             pulse = 0.5 + 0.5 * math.sin(frame_count * star["speed"] + star["phase"])
             scale = 0.55 + 0.45 * pulse
             color = tuple(min(255, int(c * scale) + 10) for c in star["color"])
             radius = 1 if pulse < 0.6 else 2
-            pygame.draw.circle(target, color, (star["x"], star["y"]), radius)
-    
+            for sx, sy in self._wrapped_positions(star["x"], star["y"], offset_x, offset_y):
+                pygame.draw.circle(target, color, (int(sx), int(sy)), radius)
+
     @staticmethod  # Static Method
     def _draw_milky_band(surface, width, height, rng):
-        """create random values for galaxy glow."""
-        # randoms values for galaxy glow, random values for RGB format, full screen size  and get noise values from the image
-        # without needing a real Perlin/Simplex noise library.
         coarse = (rng.random((10, 6)) * 255).astype(np.uint8)
         coarse_rgb = np.repeat(coarse[:, :, None], 3, axis=2)
         noise_surf = pygame.transform.smoothscale(
             pygame.surfarray.make_surface(coarse_rgb), (width, height))
         noise = pygame.surfarray.array3d(noise_surf)[:, :, 0].astype(np.float32) / 255.0
-        noise = 0.3 + 0.7 * noise  # keep a floor so it never fully vanishes
+        noise = 0.3 + 0.7 * noise
 
         xx, yy = np.meshgrid(np.arange(width), np.arange(height), indexing="ij")
         cx, cy = width * 0.5, height * 0.6
         angle = math.radians(25)
         dx, dy = xx - cx, yy - cy
-        ry = -dx * math.sin(angle) + dy * math.cos(angle)  # distance across the band
+        ry = -dx * math.sin(angle) + dy * math.cos(angle)
         band_half_width = height * 0.22
         gauss = np.exp(-(ry ** 2) / (2 * band_half_width ** 2))
 
-        peak = 24.0  # small max brightness added - subtle by design
-        tint = np.array([46, 54, 80], dtype=np.float32) / 255.0  # cool blue-grey
+        peak = 24.0
+        tint = np.array([46, 54, 80], dtype=np.float32) / 255.0
         add = (gauss * noise)[:, :, None] * tint[None, None, :] * peak
 
         pixels = pygame.surfarray.pixels3d(surface)
@@ -90,28 +90,38 @@ class Starfield:
         del pixels
 
     @staticmethod  # Static Method
-    def _star_positions(width, height, density, rng):  # Encapsulation: calculate how many stars to create
+    def _star_positions(width, height, density, rng):  # Encapsulation
         n = max(1, int(width * height * density))
         xs = rng.integers(0, width, n)
         ys = rng.integers(0, height, n)
-        # Power-law brightness: mostly dim background stars, a few
-        # standouts - not a uniform scatter of equally-bright dots.
         brightness = np.clip(rng.power(3.2, n) * 245 + 12, 0, 255).astype(int)
-        tint = rng.random(n)  # random values for star colors
+        tint = rng.random(n)
         return xs, ys, brightness, tint
 
     @staticmethod  # Static Method
     def _draw_stars(surface, xs, ys, brightness, tint):
         pixels = pygame.surfarray.pixels3d(surface)
+        alpha = pygame.surfarray.pixels_alpha(surface)
         for x, y, b, t in zip(xs, ys, brightness, tint):
             b = int(b)
-            if t < 0.08:        # cool blue-white star
+            if t < 0.08:
                 pixels[x, y] = (int(b * 0.78), int(b * 0.88), b)
-            elif t > 0.94:      # warm star
+            elif t > 0.94:
                 pixels[x, y] = (b, int(b * 0.86), int(b * 0.68))
-            else:               # ordinary white star
+            else:
                 pixels[x, y] = (b, b, b)
+            alpha[x, y] = 255
         del pixels
+        del alpha
 
-    def draw(self, target):
-        target.blit(self.surface, (0, 0))
+    def draw(self, target, offset_x=0, offset_y=0):
+        target.blit(self.base, (0, 0))
+        if offset_x == 0 and offset_y == 0:
+            target.blit(self.stars, (0, 0))
+            return
+        w, h = self.width, self.height
+        ox = int(offset_x) % w
+        oy = int(offset_y) % h
+        for dx in (ox - w, ox):
+            for dy in (oy - h, oy):
+                target.blit(self.stars, (dx, dy))
