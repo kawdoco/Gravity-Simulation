@@ -1,4 +1,4 @@
-
+"""simulation.py - owns the N-body physics: gravity, collisions, time-stepping."""
 import json
 from functools import singledispatchmethod
 
@@ -95,7 +95,7 @@ class Simulation:
         self.remove_body(a if bigger is b else b)
 
     def _bounce(self, a, b):
-        normal = (b.position - a.position).normalized()
+        normal = (a.position - b.position).normalized()
         relative_velocity = a.velocity - b.velocity
         velocity_along_normal = relative_velocity.dot(normal)
         if velocity_along_normal > 0:

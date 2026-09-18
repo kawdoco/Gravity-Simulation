@@ -1,32 +1,25 @@
-"""
-vector.py
-
-A minimal 3D vector class used for position, velocity, and force
-throughout the simulation. Wrapping x, y, z in a class.
-"""
+"""vector.py - minimal 3D vector for position/velocity/force math."""
 import math
 
 
 class Vector3D:
-    """A simple 3D vector supporting the arithmetic the physics needs."""
-
     def __init__(self, x=0.0, y=0.0, z=0.0):
         self.x = x
         self.y = y
         self.z = z
 
-    def __add__(self, other):
+    def __add__(self, other):  # Polymorphism
         return Vector3D(self.x + other.x, self.y + other.y, self.z + other.z)
 
-    def __sub__(self, other):
+    def __sub__(self, other):  # Polymorphism
         return Vector3D(self.x - other.x, self.y - other.y, self.z - other.z)
 
-    def __mul__(self, scalar):
+    def __mul__(self, scalar):  # Polymorphism
         return Vector3D(self.x * scalar, self.y * scalar, self.z * scalar)
 
-    __rmul__ = __mul__  # "scalar * vector" works too
+    __rmul__ = __mul__  # Polymorphism
 
-    def __truediv__(self, scalar):
+    def __truediv__(self, scalar):  # Polymorphism
         return Vector3D(self.x / scalar, self.y / scalar, self.z / scalar)
 
     def dot(self, other):
