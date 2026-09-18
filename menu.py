@@ -1,3 +1,5 @@
+"""menu.py - in-app start screen. MainMenu.run() returns a settings
+dict, or None if the player quit."""
 import pygame
 
 from starfield import Starfield
@@ -13,13 +15,12 @@ START_COLOR_SELECTED = (190, 255, 215)
 
 
 class MenuOption:
-
     def __init__(self, key, label, choices, default_index=0, visible_if=None):
         self.key = key
         self.label = label
-        self.choices = choices
+        self.choices = choices  # [(display_text, value), ...]
         self.index = default_index
-        self.visible_if = visible_if
+        self.visible_if = visible_if  # optional settings_dict -> bool
 
     @property  # Encapsulation
     def value(self):
@@ -51,6 +52,8 @@ class MainMenu:
         self.value_font = pygame.font.SysFont("consolas", 17, bold=True)
         self.hint_font = pygame.font.SysFont("consolas", 13)
         self.start_font = pygame.font.SysFont("consolas", 20, bold=True)
+        self.value_fonts = {size: pygame.font.SysFont("consolas", size, bold=True)
+                             for size in (17, 15, 13, 11)}
 
         self.starfield = Starfield(self.width, self.height)
         self.frame_count = 0
@@ -63,19 +66,23 @@ class MainMenu:
                        [("50", 50), ("80", 80), ("150", 150), ("300", 300)],
                        default_index=1,
                        visible_if=lambda s: s["scenario"] == "cluster"),
+            MenuOption("motion_mode", "View mode",
+                       [("Static (classic orbits)", "static"),
+                        ("Spiral (drifts through space)", "spiral")]),
             MenuOption("collisions", "Collisions",
                        [("Merge on impact", 0.0), ("Bounce (elastic)", 1.0)]),
             MenuOption("integrator", "Integrator",
                        [("Verlet (accurate)", "verlet"), ("Euler (simple)", "euler")]),
             MenuOption("barnes_hut", "Force calculation",
                        [("Direct (exact)", False),
-                        ("Barnes-Hut (approximate, faster for many bodies)", True)]),
+                        ("Barnes-Hut (approx.)", True)]),
             MenuOption("fullscreen", "Display",
                        [("Fullscreen", True), ("Windowed", False)]),
         ]
         self.selected = 0
         self.start_hovered = False
 
+    # ---- state -------------------------------------------------
     def _current_settings(self):
         return {o.key: o.value for o in self.options}
 
@@ -92,6 +99,7 @@ class MainMenu:
         y = self.ROW_START_Y + num_rows * self.ROW_H + 22
         return pygame.Rect(int(self.width / 2 - 110), int(y), 220, 48)
 
+    # ---- input -------------------------------------------------
     def _handle_click(self, pos, visible):
         for i, option in enumerate(visible):
             rect = self._row_rect(i)
@@ -142,6 +150,7 @@ class MainMenu:
             self.clock.tick(60)
             self.frame_count += 1
 
+    # ---- drawing -------------------------------------------------
     def _render(self, visible):
         self.starfield.draw(self.screen)
         self.starfield.draw_twinkle(self.screen, self.frame_count)
@@ -176,7 +185,14 @@ class MainMenu:
 
         value_color = TITLE_COLOR if is_selected else TEXT
         value_text = f"<  {option.display}  >" if is_selected else option.display
-        value = self.value_font.render(value_text, True, value_color)
+        # shrink font to fit if it'd collide with the label
+        available = rect.width - 40 - label.get_width() - 16
+        font = self.value_font
+        for size in (17, 15, 13, 11):
+            font = self.value_fonts[size]
+            if font.size(value_text)[0] <= available or size == 11:
+                break
+        value = font.render(value_text, True, value_color)
         self.screen.blit(value, value.get_rect(midright=(rect.right - 20, rect.centery)))
 
     def _draw_start_button(self, num_rows):

@@ -1,7 +1,6 @@
-"""
-spacetime_grid.py
+"""spacetime_grid.py - the "dented fabric" grid under the bodies.
 
-This is a visual representation of gravity wells, not a physically exact simulation of general relativity..
+    height = peak / sqrt(1 + distance^2 / width^2)
 """
 import math
 import numpy as np
@@ -11,31 +10,32 @@ from constants import AU
 
 
 class SpacetimeGrid:
-    #creates the curved grid around the bodies to visually represent gravity wells.
-    #Calculates the depth of the gravity well.
-    #Makes the well deeper and wider for larger masses.
-    #Combines the effects of all bodies.
-    #Draws the grid on the Pygame screen
     def __init__(self, extent_au=4.0, step_au=0.15):
-        n = int(2 * extent_au / step_au) + 1
-        coords = np.linspace(-extent_au * AU, extent_au * AU, n)
-        self.gx, self.gy = np.meshgrid(coords, coords)
-        self.n = n
+        self.extent_au = extent_au
+        self.step_au = step_au
+        self.n = int(2 * extent_au / step_au) + 1
+        self._build_mesh(0.0, 0.0)
 
-    @staticmethod
+    def _build_mesh(self, center_x, center_y):  # Encapsulation
+        coords_x = np.linspace(center_x - self.extent_au * AU, center_x + self.extent_au * AU, self.n)
+        coords_y = np.linspace(center_y - self.extent_au * AU, center_y + self.extent_au * AU, self.n)
+        self.gx, self.gy = np.meshgrid(coords_x, coords_y)
+
+    def recenter(self, center_x, center_y):
+        """Keeps the grid under the star as it drifts in spiral mode."""
+        self._build_mesh(center_x, center_y)
+
+    @staticmethod  # Static Method
     def _peak_height(mass):
-        """Taller dip for heavier bodies. Log scale so a star's dip
-        doesn't completely dwarf a planet's on the same grid."""
         peak = 25.0 * math.log10(mass) - 560.0
         return max(10.0, min(peak, 220.0))
 
-    @staticmethod
+    @staticmethod  # Static Method
     def _well_width(mass):
-        """Wider dip for heavier bodies, scaled off Earth's mass."""
         width_au = 0.14 * (mass / 5.972e24) ** (1 / 3)
         return max(0.05, min(width_au, 0.9)) * AU
 
-    def _heights(self, bodies):
+    def _heights(self, bodies):  # Encapsulation
         z = np.zeros((self.n, self.n))
         for body in bodies:
             peak = self._peak_height(body.mass)
@@ -50,8 +50,6 @@ class SpacetimeGrid:
             return
         z = self._heights(bodies)
         peak = max(float(z.max()), 1.0)
-        # Make the gravity well easier to see across the grid.
-        # Increase brightness so the whole gravity well is visible.
         brightness = np.clip((z / peak) ** 0.45, 0.0, 1.0)
 
         sx, sy = camera.project_grid(self.gx * camera.scale, self.gy * camera.scale, -z)
@@ -62,9 +60,8 @@ class SpacetimeGrid:
             for col in range(n - 1):
                 x0, y0 = sx[row, col], sy[row, col]
                 if not (-50 <= x0 <= w + 50 and -50 <= y0 <= h + 50):
-                    continue  # Skip off-screen lines.
+                    continue
                 b = float(brightness[row, col])
-                
                 color = (int(14 + b * 62), int(17 + b * 68), int(26 + b * 78))
                 x1, y1 = sx[row, col + 1], sy[row, col + 1]
                 x2, y2 = sx[row + 1, col], sy[row + 1, col]
