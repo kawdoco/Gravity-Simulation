@@ -1,7 +1,7 @@
 """body.py - class hierarchy for anything with mass that moves under gravity."""
 from abc import ABC, abstractmethod
 
-from vector import Vector3D
+from .vector import Vector3D
 
 
 class CelestialBody(ABC):  # Abstraction

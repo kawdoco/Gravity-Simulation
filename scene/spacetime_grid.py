@@ -6,7 +6,7 @@ import math
 import numpy as np
 import pygame
 
-from constants import AU
+from physics.constants import AU
 
 
 class SpacetimeGrid:

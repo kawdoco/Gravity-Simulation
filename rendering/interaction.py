@@ -5,9 +5,9 @@ import random
 
 import pygame
 
-from vector import Vector3D
-from body import Planet, CelestialBody
-from constants import G, AU
+from physics.vector import Vector3D
+from physics.body import Planet, CelestialBody
+from physics.constants import G, AU
 
 
 class InteractionController:

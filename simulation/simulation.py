@@ -2,11 +2,11 @@
 import json
 from functools import singledispatchmethod
 
-from vector import Vector3D
-from body import CelestialBody
-from octree import Octree
-from integrator import VerletIntegrator
-from constants import G
+from physics.vector import Vector3D
+from physics.body import CelestialBody
+from .octree import Octree
+from physics.integrator import VerletIntegrator
+from physics.constants import G
 
 
 class Simulation:

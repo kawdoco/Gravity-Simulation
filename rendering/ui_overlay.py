@@ -4,8 +4,8 @@ import math
 
 import pygame
 
-from body import Star
-from constants import G, AU
+from physics.body import Star
+from physics.constants import G, AU
 
 HUD_TEXT = (225, 227, 232)
 HUD_PANEL = (9, 11, 18, 165)

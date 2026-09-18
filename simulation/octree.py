@@ -3,8 +3,8 @@ octree.py
 
 Barnes-Hut approximation for N-body gravity..
 """
-from vector import Vector3D
-from constants import G
+from physics.vector import Vector3D
+from physics.constants import G
 
 
 class OctreeNode:
