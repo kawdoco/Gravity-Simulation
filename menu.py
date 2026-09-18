@@ -2,7 +2,7 @@
 dict, or None if the player quit."""
 import pygame
 
-from starfield import Starfield
+from scene.starfield import Starfield
 
 BG_PANEL = (16, 19, 30, 190)
 BG_PANEL_SELECTED = (32, 40, 64, 220)

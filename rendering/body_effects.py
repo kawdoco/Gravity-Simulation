@@ -5,8 +5,8 @@ import math
 
 import pygame
 
-from vector import Vector3D
-from body import Star
+from physics.vector import Vector3D
+from physics.body import Star
 
 BURST_COLOR = (255, 225, 170)
 

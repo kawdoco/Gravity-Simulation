@@ -4,12 +4,12 @@ import math
 import random
 import sys
 
-from vector import Vector3D
-from body import Star, Planet, CelestialBody
-from simulation import Simulation
+from physics.vector import Vector3D
+from physics.body import Star, Planet, CelestialBody
+from simulation.simulation import Simulation
 from rendering import Visualizer
-from integrator import EulerIntegrator, VerletIntegrator, RK4Integrator
-from constants import G, AU
+from physics.integrator import EulerIntegrator, VerletIntegrator, RK4Integrator
+from physics.constants import G, AU
 
 
 def build_solar_system():

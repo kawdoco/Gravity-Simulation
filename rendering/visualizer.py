@@ -6,13 +6,13 @@ import math
 import numpy as np
 import pygame
 
-from vector import Vector3D
-from camera import Camera
-from spacetime_grid import SpacetimeGrid
-from starfield import Starfield
-from sphere_render import SphereCache
-from body import Star
-from constants import AU
+from physics.vector import Vector3D
+from scene.camera import Camera
+from scene.spacetime_grid import SpacetimeGrid
+from scene.starfield import Starfield
+from scene.sphere_render import SphereCache
+from physics.body import Star
+from physics.constants import AU
 
 from .body_effects import BodyEffects
 from .interaction import InteractionController
