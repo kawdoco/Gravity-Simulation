@@ -56,14 +56,42 @@ class SpacetimeGrid:
 
         n = self.n
         w, h = surface.get_width(), surface.get_height()
-        for row in range(n - 1):
-            for col in range(n - 1):
-                x0, y0 = sx[row, col], sy[row, col]
-                if not (-50 <= x0 <= w + 50 and -50 <= y0 <= h + 50):
-                    continue
+        # Batches BATCH points per aalines() call instead of one
+        # aaline() call per cell edge - far fewer draw calls at this count.
+        BATCH = 6
+
+        def draw_polyline_run(points_x, points_y, colors):
+            i = 0
+            m = len(points_x)
+            while i < m - 1:
+                j = min(i + BATCH, m - 1)
+                pts = list(zip(points_x[i:j + 1], points_y[i:j + 1]))
+                if len(pts) >= 2:
+                    pygame.draw.aalines(surface, colors[i], False, pts)
+                i = j
+
+        for row in range(n):
+            row_x, row_y, row_c, on_screen = [], [], [], False
+            for col in range(n):
+                x, y = float(sx[row, col]), float(sy[row, col])
+                if -50 <= x <= w + 50 and -50 <= y <= h + 50:
+                    on_screen = True
                 b = float(brightness[row, col])
-                color = (int(14 + b * 62), int(17 + b * 68), int(26 + b * 78))
-                x1, y1 = sx[row, col + 1], sy[row, col + 1]
-                x2, y2 = sx[row + 1, col], sy[row + 1, col]
-                pygame.draw.aaline(surface, color, (x0, y0), (x1, y1))
-                pygame.draw.aaline(surface, color, (x0, y0), (x2, y2))
+                row_x.append(x)
+                row_y.append(y)
+                row_c.append((int(14 + b * 62), int(17 + b * 68), int(26 + b * 78)))
+            if on_screen:
+                draw_polyline_run(row_x, row_y, row_c)
+
+        for col in range(n):
+            col_x, col_y, col_c, on_screen = [], [], [], False
+            for row in range(n):
+                x, y = float(sx[row, col]), float(sy[row, col])
+                if -50 <= x <= w + 50 and -50 <= y <= h + 50:
+                    on_screen = True
+                b = float(brightness[row, col])
+                col_x.append(x)
+                col_y.append(y)
+                col_c.append((int(14 + b * 62), int(17 + b * 68), int(26 + b * 78)))
+            if on_screen:
+                draw_polyline_run(col_x, col_y, col_c)

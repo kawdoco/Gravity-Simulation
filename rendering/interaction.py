@@ -1,9 +1,6 @@
 """interaction.py - player-triggered actions: spawning a random planet
 or a guaranteed collision pair, resetting the camera view, and
-held-key camera control. Split out of visualizer.py; pairs naturally
-with body.py since two of these create new CelestialBody instances.
-Reaches back into the parent Visualizer via self.viz for the
-simulation/camera/timing state it needs."""
+held-key camera control. """
 import random
 
 import pygame
@@ -29,7 +26,7 @@ class InteractionController:
 
         mass = 5e23
         natural_radius = CelestialBody.radius_from_mass(mass)
-        safe_radius = 1.5 * gap / steps_to_impact  # big enough a timestep can't skip past it
+        safe_radius = 1.5 * gap / steps_to_impact  
         radius = max(natural_radius, safe_radius)
 
         n = len(viz.sim.bodies)
@@ -80,10 +77,13 @@ class InteractionController:
     def handle_held_keys(self):
         viz = self.viz
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_UP]:
-            viz.camera.adjust_pitch(1.2)
-        if keys[pygame.K_DOWN]:
-            viz.camera.adjust_pitch(-1.2)
+        if keys[pygame.K_UP] or keys[pygame.K_DOWN]:
+            direction = 1.2 if keys[pygame.K_UP] else -1.2
+            if viz.motion_mode == "spiral":
+                viz._spiral_pitch_bias_deg = max(-25.0, min(25.0,
+                    viz._spiral_pitch_bias_deg + direction))
+            else:
+                viz.camera.adjust_pitch(direction)
         if keys[pygame.K_LEFT]:
             viz.camera.adjust_yaw(-1.5)
         if keys[pygame.K_RIGHT]:

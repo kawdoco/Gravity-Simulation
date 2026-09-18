@@ -32,7 +32,7 @@ class CelestialBody(ABC):  # Abstraction
         acceleration = force / self._mass
         self.velocity = self.velocity + acceleration * dt
 
-    def record_trail(self, max_trail_length: int = 900):
+    def record_trail(self, max_trail_length: int = 4500):
         self.trail.append(self.position.as_tuple())
         if len(self.trail) > max_trail_length:
             self.trail.pop(0)

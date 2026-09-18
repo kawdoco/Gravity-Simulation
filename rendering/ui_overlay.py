@@ -1,8 +1,5 @@
 """ui_overlay.py - on-screen info: HUD, per-body labels, the selection
-ring, and the inspector panel, plus click-to-select hit-testing. Split
-out of visualizer.py; pairs naturally with main.py/menu.py as the
-player-facing control/info layer. Reaches back into the parent
-Visualizer via self.viz for shared state."""
+ring, and the inspector panel, plus click-to-select hit-testing. """
 import math
 
 import pygame

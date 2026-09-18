@@ -1,14 +1,6 @@
 """visualizer.py - pygame renderer: game loop that steps physics and
-draws the scene each frame. See set_motion_mode() for static/spiral
-view modes, and _handle_events()/interaction.handle_held_keys() for
-controls.
-
-Core render loop, display/motion-mode management, and bloom only -
-three related concerns are composed in from their own files instead:
-body_effects.BodyEffects (trails/bodies/bursts), ui_overlay.UIOverlay
-(HUD/labels/inspector panel), interaction.InteractionController
-(hotkeys/held-key camera control). All three reach back into this
-class via self.viz."""
+draws the scene each frame.
+"""
 import math
 
 import numpy as np
@@ -29,11 +21,17 @@ from .ui_overlay import UIOverlay
 
 class Visualizer:
     AUTO_SPIN_DEG_PER_FRAME = 0.05
-    SPIRAL_PITCH_DEG = 28
-    SPIRAL_DRIFT_MS = (4000, 2000, 20000)  # m/s at the 3 AU reference scale
+    SPIRAL_PITCH_LOW_DEG = 8  # near head-on - reads as nested rings
+    SPIRAL_PITCH_HIGH_DEG = 66  # side-on - reads as an extended coil
+    SPIRAL_PITCH_SWEEP_PERIOD_S = 34  
+    SPIRAL_DRIFT_MS = (2500, 2000, -9200)  # m/s at the 3 AU reference scale; Z-dominant, see spiral_drift_vector
     SPIRAL_INTRO_FRAMES = 110
     SPIRAL_INTRO_START_ZOOM = 2.3
     SPIRAL_INTRO_START_PITCH_DEG = 62
+    SPIRAL_OFFCENTER_PX = (-130, -40)  # keeps the star off dead-center 
+    STAR_GLOW_RADIUS_FACTOR = 1.7
+    TRAIL_POINT_BUDGET = 4000  
+    STAR_SPINE_POINT_BUDGET = 350
 
     @classmethod
     def spiral_drift_vector(cls, view_radius_au):
@@ -72,6 +70,7 @@ class Visualizer:
         self.motion_mode = "static"
         self._drift_applied = drift_already_applied
         self._spiral_transition_frame = 0
+        self._spiral_pitch_bias_deg = 0.0  # lets Up/Down nudge the pitch sweep instead of being overwritten
 
         self.effects = BodyEffects(self)
         self.interaction = InteractionController(self)
@@ -83,8 +82,8 @@ class Visualizer:
     def _apply_camera_defaults_for_mode(self):
         if self.motion_mode == "spiral":
             self.camera.mode = Camera.TILT
-            self.camera._default_pitch_degrees = self.SPIRAL_PITCH_DEG
-            self.camera.pitch = math.radians(self.SPIRAL_PITCH_DEG)
+            self.camera._default_pitch_degrees = self.SPIRAL_PITCH_LOW_DEG
+            self.camera.pitch = math.radians(self.SPIRAL_PITCH_LOW_DEG)
         else:
             self.camera._default_pitch_degrees = self._static_default_pitch_deg
 
@@ -98,19 +97,23 @@ class Visualizer:
             self._apply_camera_defaults_for_mode()
             self.camera.zoom = self.SPIRAL_INTRO_START_ZOOM
             self.camera.pitch = math.radians(self.SPIRAL_INTRO_START_PITCH_DEG)
+            self.camera.yaw = 0.0
+            self.camera.screen_offset_x, self.camera.screen_offset_y = self.SPIRAL_OFFCENTER_PX
             self._spiral_transition_frame = 0
+            self._spiral_pitch_bias_deg = 0.0
             self.status_text = "Spiral mode - the whole system now drifts through space"
         else:
             self._apply_camera_defaults_for_mode()
             self.camera.pitch = math.radians(self._static_default_pitch_deg)
+            self.camera.screen_offset_x = self.camera.screen_offset_y = 0.0
             if self._drift_applied:
+        
                 drift = self.spiral_drift_vector(self.view_radius_au)
                 self.sim.apply_drift(Vector3D(-drift.x, -drift.y, -drift.z))
                 self._drift_applied = False
             self.status_text = "Static mode"
 
     def _update_camera_follow(self):
-        """Eases the camera toward the star each frame in spiral mode."""
         if self.motion_mode != "spiral":
             return
         anchor = max(self.sim.bodies, key=lambda b: b.mass, default=None)
@@ -126,8 +129,15 @@ class Visualizer:
                                  (1.0 - self.SPIRAL_INTRO_START_ZOOM) * eased)
             self.camera.pitch = math.radians(
                 self.SPIRAL_INTRO_START_PITCH_DEG +
-                (self.SPIRAL_PITCH_DEG - self.SPIRAL_INTRO_START_PITCH_DEG) * eased)
+                (self.SPIRAL_PITCH_LOW_DEG - self.SPIRAL_INTRO_START_PITCH_DEG) * eased)
             return
+
+        cruise_frame = self._spiral_transition_frame - self.SPIRAL_INTRO_FRAMES
+        mid = (self.SPIRAL_PITCH_LOW_DEG + self.SPIRAL_PITCH_HIGH_DEG) / 2 + self._spiral_pitch_bias_deg
+        amplitude = (self.SPIRAL_PITCH_HIGH_DEG - self.SPIRAL_PITCH_LOW_DEG) / 2
+        phase = 2 * math.pi * (cruise_frame / 60.0) / self.SPIRAL_PITCH_SWEEP_PERIOD_S
+        self.camera.pitch = math.radians(mid - amplitude * math.cos(phase))  # cos: phase=0 starts at the low end
+
         ease = 0.02
         self.camera.focus_x += (anchor.position.x - self.camera.focus_x) * ease
         self.camera.focus_y += (anchor.position.y - self.camera.focus_y) * ease
@@ -147,10 +157,15 @@ class Visualizer:
         self._static_default_pitch_deg = self.camera._default_pitch_degrees
         if getattr(self, "motion_mode", "static") == "spiral":
             self._apply_camera_defaults_for_mode()
+            self.camera.screen_offset_x, self.camera.screen_offset_y = self.SPIRAL_OFFCENTER_PX
             anchor = max(self.sim.bodies, key=lambda b: b.mass, default=None)
             if anchor is not None:
                 self.camera.set_focus(anchor.position.x, anchor.position.y, anchor.position.z)
-        self.grid = SpacetimeGrid(extent_au=self.view_radius_au * 1.3)
+        # step_au scales with view_radius_au to keep grid point count
+        # roughly constant regardless of zoom (a fixed step_au built an
+        # n=590 grid once Neptune needed ~34 AU to fit in frame).
+        self.grid = SpacetimeGrid(extent_au=self.view_radius_au * 1.3,
+                                   step_au=0.15 * (self.view_radius_au / 3.0))
         self.starfield = Starfield(self.width, self.height)
         self.vignette = self._build_vignette(self.width, self.height)
         self.glow_layer = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
@@ -217,17 +232,32 @@ class Visualizer:
         self._update_camera_follow()
         self.camera.adjust_yaw(self.AUTO_SPIN_DEG_PER_FRAME)
 
-        PARALLAX_FACTOR = 0.12
+       
+        PARALLAX_FACTOR = 2.4
         star_offset_x = -self.camera.focus_x * self.camera.scale * self.camera.zoom * PARALLAX_FACTOR
         star_offset_y = -self.camera.focus_y * self.camera.scale * self.camera.zoom * PARALLAX_FACTOR
         self.starfield.draw(self.screen, star_offset_x, star_offset_y)
         self.starfield.draw_twinkle(self.screen, self.frame_count, star_offset_x, star_offset_y)
-        self.grid.draw(self.screen, self.sim.bodies, self.camera)
+        if self.motion_mode != "spiral":
+            self.grid.draw(self.screen, self.sim.bodies, self.camera)  
 
         self.trail_layer.fill((0, 0, 0, 0))
-        for body in self.sim.bodies:
-            if not isinstance(body, Star):
-                self.effects.draw_trail(body)
+        star_screens = []
+        stars = [b for b in self.sim.bodies if isinstance(b, Star)]
+        planets = [b for b in self.sim.bodies if not isinstance(b, Star)]
+        for body in stars:
+            sx, sy = self.camera.project(body.position)
+            star_screens.append((sx, sy, self._marker_radius(body) * self.STAR_GLOW_RADIUS_FACTOR))
+
+       
+        trail_points = max(60, min(350, self.TRAIL_POINT_BUDGET // max(1, len(planets))))
+        spine_points = max(140, min(350, self.STAR_SPINE_POINT_BUDGET // max(1, len(stars)))) if stars else 0
+
+        for body in stars:
+            if self.motion_mode == "spiral":
+                self.effects.draw_star_spine(body, max_points=spine_points)
+        for body in planets:
+            self.effects.draw_trail(body, star_screens, max_points=trail_points)
         self.screen.blit(self.trail_layer, (0, 0))
 
         self.glow_layer.fill((0, 0, 0, 0))
